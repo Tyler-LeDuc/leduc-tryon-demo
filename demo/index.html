@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Leduc Try-On</title>
+<meta name="description" content="Real-time AR makeup try-on in the browser: lips, eyes, cheeks, skin, brows and hair on your camera or a photo.">
+<style>
+  :root {
+    --bg: #faf7f5; --panel: #ffffff; --ink: #1d1a19; --muted: #6f6866; --line: #e8e1dd; --accent: #b0303f; --accent-ink: #fff; --stage: #161312;
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #141110; --panel: #1e1a19; --ink: #f3eeec; --muted: #a59d9a; --line: #322c2a; --accent: #e0566a; --accent-ink: #160d0e; --stage: #0b0909; }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  body { min-height: 100dvh; display: flex; flex-direction: column; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; }
+  header h1 { font-size: 17px; margin: 0; letter-spacing: .2px; }
+  header h1 span { color: var(--accent); }
+  .status { font-size: 13px; color: var(--muted); text-align: right; }
+  main { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; padding: 0 16px 16px; max-width: 1280px; width: 100%; margin: 0 auto; }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; gap: 10px; padding: 0 0 16px; } }
+  main > * { min-width: 0; }
+  .stage-wrap { position: relative; align-self: start; }
+  #stage { width: 100%; aspect-ratio: 3 / 4; max-height: calc(100dvh - 120px); border-radius: 16px; background: var(--stage); }
+  @media (min-width: 861px) { #stage { aspect-ratio: 4 / 3; } }
+  @media (max-width: 860px) { #stage { border-radius: 0; max-height: 62dvh; } }
+  .empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: #eee; text-align: center; padding: 24px; pointer-events: none; }
+  .empty p { margin: 0; max-width: 300px; color: #bbb; }
+  .empty .row { pointer-events: auto; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  button, .btn { font: inherit; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 999px; padding: 9px 16px; cursor: pointer; min-height: 40px; display: inline-flex; align-items: center; gap: 6px; }
+  button.primary, .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
+  button:disabled { opacity: .5; cursor: default; }
+  input[type=file] { display: none; }
+  .toolbar { position: absolute; left: 12px; right: 12px; bottom: 12px; display: flex; gap: 8px; justify-content: space-between; align-items: center; pointer-events: none; }
+  .toolbar > * { pointer-events: auto; }
+  .toolbar .row { flex-wrap: nowrap; }
+  @media (max-width: 420px) { .toolbar button, .toolbar .btn { padding: 8px 12px; } }
+  .toolbar button { background: rgba(20,16,15,.62); color: #fff; border-color: rgba(255,255,255,.18); backdrop-filter: blur(8px); }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; display: flex; flex-direction: column; min-height: 0; }
+  @media (max-width: 860px) { .panel { border-radius: 0; border-left: 0; border-right: 0; } }
+  .tabs { display: flex; gap: 4px; overflow-x: auto; padding: 10px 10px 0; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { flex: none; border: 0; background: transparent; color: var(--muted); padding: 8px 12px; border-radius: 999px; min-height: 36px; }
+  .tab[aria-selected=true] { background: var(--ink); color: var(--bg); }
+  .tab .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); display: inline-block; margin-left: 2px; }
+  .body { padding: 14px; display: flex; flex-direction: column; gap: 14px; }
+  .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 10px; }
+  .sw { display: flex; flex-direction: column; align-items: center; gap: 6px; background: none; border: 0; padding: 0; min-height: 0; border-radius: 12px; color: var(--ink); font-size: 12px; text-align: center; }
+  .sw i { width: 48px; height: 48px; border-radius: 50%; display: block; box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); position: relative; }
+  .sw[aria-pressed=true] i { outline: 2px solid var(--ink); outline-offset: 3px; }
+  .sw.none i { background: repeating-linear-gradient(45deg, var(--line) 0 4px, transparent 4px 8px); }
+  .looks { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .look { border-radius: 12px; padding: 10px 12px; text-align: left; display: block; min-height: 0; }
+  .look b { display: block; font-size: 14px; }
+  .look small { color: var(--muted); font-size: 12px; }
+  .look[aria-pressed=true] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { padding: 6px 12px; min-height: 32px; font-size: 13px; }
+  .chip[aria-pressed=true] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  label.slider { display: grid; grid-template-columns: 76px 1fr 40px; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .foot { margin-top: auto; padding: 12px 14px; border-top: 1px solid var(--line); display: flex; gap: 8px; flex-wrap: wrap; }
+  .note { font-size: 12px; color: var(--muted); padding: 0 16px 16px; max-width: 1280px; margin: 0 auto; width: 100%; }
+  .err { color: #e0566a; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Leduc <span>Try-On</span></h1>
+  <div class="status" id="status" role="status" aria-live="polite">Choose camera or a photo</div>
+</header>
+<main>
+  <div class="stage-wrap">
+    <div id="stage"></div>
+    <div class="empty" id="empty">
+      <p>Try makeup on your face live, or on a selfie. Everything runs in your browser; nothing is uploaded.</p>
+      <div class="row">
+        <button class="primary" id="cam">Use camera</button>
+        <label class="btn" for="file">Upload a photo</label>
+      </div>
+    </div>
+    <div class="toolbar" id="toolbar" hidden>
+      <div class="row"><button id="cam2" title="Live camera">Camera</button><label class="btn" for="file" style="background:rgba(20,16,15,.62);color:#fff;border-color:rgba(255,255,255,.18)">Photo</label></div>
+      <div class="row"><button id="cmp" aria-pressed="false">Compare</button><button id="snap">Save</button></div>
+    </div>
+  </div>
+  <section class="panel" aria-label="Makeup">
+    <div class="tabs" role="tablist" id="tabs"></div>
+    <div class="body" id="body"></div>
+    <div class="foot"><button id="clear">Clear all</button></div>
+  </section>
+</main>
+<input type="file" id="file" accept="image/*">
+<p class="note">Face tracking: Google MediaPipe (Apache-2.0), loaded from a CDN on first use. Works in current Chrome, Edge, Safari and Firefox; the camera needs HTTPS or localhost.</p>
+
+<script type="module">
+import { LeducTryOn } from '../dist/leduc-tryon.min.js';
+
+const $ = (id) => document.getElementById(id);
+const CATS = [
+  { id: 'looks', label: 'Looks' },
+  { id: 'lips', label: 'Lips', finishes: ['matte', 'satin', 'gloss', 'sheershine', 'vinyl', 'shimmer', 'metallic', 'oil', 'balm', 'stain'], shades: [['Classic red', '#B0303F'], ['Rose nude', '#C27C7A'], ['Berry', '#8C494F'], ['Pink', '#D97373'], ['Mauve', '#A75A58'], ['Coral', '#E06A5A'], ['Brick', '#933441'], ['Cocoa', '#5F3E36']] },
+  { id: 'lipLiner', label: 'Lip liner', shades: [['Nude', '#8D5B4A'], ['Rose', '#A0646A'], ['Red', '#943733'], ['Plum', '#5E2239']] },
+  { id: 'eyeshadow', label: 'Eyeshadow', finishes: ['matte', 'shimmer'], shades: [['Champagne', '#DCB598'], ['Taupe', '#9C6A5E'], ['Copper', '#B0623F'], ['Bronze', '#A57B69'], ['Plum', '#7E4E66'], ['Charcoal', '#4E423E'], ['Rose', '#C17D76'], ['Olive', '#7A7048']] },
+  { id: 'eyeliner', label: 'Eyeliner', wing: true, shades: [['Black', '#141010'], ['Brown', '#3A2A22'], ['Navy', '#1C2A4A'], ['Plum', '#4A2236']] },
+  { id: 'mascara', label: 'Mascara', shades: [['Black', '#120C0A'], ['Brown', '#2E1C12']] },
+  { id: 'brows', label: 'Brows', shades: [['Taupe', '#6E5444'], ['Brown', '#4A3428'], ['Dark', '#2E2018'], ['Auburn', '#6A3A28']] },
+  { id: 'blush', label: 'Blush', shades: [['Peach', '#EEA297'], ['Coral', '#E16B62'], ['Pink', '#EB9CBB'], ['Berry', '#C2386B'], ['Terracotta', '#B0705A'], ['Mauve', '#B86A97']] },
+  { id: 'bronzer', label: 'Bronzer', shades: [['Light', '#C08A60'], ['Medium', '#A8724F'], ['Deep', '#8E5A38']] },
+  { id: 'contour', label: 'Contour', shades: [['Light', '#A07A64'], ['Medium', '#8A5A40'], ['Deep', '#6E4A38']] },
+  { id: 'highlight', label: 'Highlight', shades: [['Pearl', '#F6E3D0'], ['Champagne', '#F3DCC8'], ['Gold', '#F2D3A8'], ['Rose', '#F4D8D4']] },
+  { id: 'foundation', label: 'Foundation', coverages: ['sheer', 'medium', 'full'], shades: [['Fair', '#F1D3BE'], ['Light', '#E3B99B'], ['Medium', '#C99A78'], ['Tan', '#A7754F'], ['Deep', '#7A5236'], ['Rich', '#4E3324']] },
+  { id: 'concealer', label: 'Concealer', shades: [['Fair', '#F6DCC8'], ['Light', '#EBC6A8'], ['Medium', '#D4A884'], ['Tan', '#B88560'], ['Deep', '#8A6042']] },
+  { id: 'hair', label: 'Hair', shades: [['Jet black', '#1B1716'], ['Espresso', '#3B2A22'], ['Chestnut', '#7B4A2D'], ['Auburn', '#7A2E22'], ['Copper', '#A0522D'], ['Honey', '#B98A4E'], ['Platinum', '#E6DCCB'], ['Rose gold', '#C98C83'], ['Burgundy', '#6B1F2E'], ['Lavender', '#A890C8']] },
+];
+
+const state = { tab: 'looks', spec: {}, look: null, lookStrength: 1, compare: false };
+let tryon = null, busy = false;
+
+const setStatus = (t, err) => { const s = $('status'); s.textContent = t; s.classList.toggle('err', !!err); };
+const onStatus = (s) => { if (!tryon) return; if (tryon.mode === 'live') setStatus(!s.face ? 'Looking for your face…' : s.tooDark ? 'Too dark: face a light' : 'Live'); else if (tryon.mode === 'photo') setStatus(s.face ? 'Photo' : 'No face found in this photo', !s.face); };
+
+async function ensure() { if (!tryon) tryon = await LeducTryOn.create({ container: $('stage'), onStatus }); return tryon; }
+const ready = () => { $('empty').hidden = true; $('toolbar').hidden = false; };
+
+async function startCamera() {
+  try { setStatus('Starting camera…'); const t = await ensure(); await t.startCamera(); ready(); push(); }
+  catch (e) { setStatus(/denied|NotAllowed/i.test(String(e && (e.name || e.message))) ? 'Allow camera access to try makeup live' : 'Camera unavailable here; try a photo', true); }
+}
+async function usePhoto(file) {
+  if (!file) return;
+  try { setStatus('Finding your face…'); const t = await ensure(); const r = await t.usePhoto(file); ready(); await push(); if (!r.face) setStatus('No face found in this photo', true); }
+  catch (e) { setStatus('Could not open that photo', true); }
+}
+
+// Push the current choices into the engine.
+async function push() {
+  if (!tryon || tryon.mode === 'idle') return;
+  busy = true;
+  try { if (state.look) await tryon.applyLook(state.look, { strength: state.lookStrength, extra: state.spec.hair ? { hair: state.spec.hair } : {} }); else await tryon.apply(state.spec); }
+  finally { busy = false; }
+  renderTabs();
+}
+
+function renderTabs() {
+  $('tabs').innerHTML = CATS.map((c) => { const on = c.id === 'looks' ? !!state.look : !!state.spec[c.id]; return `<button class="tab" role="tab" aria-selected="${state.tab === c.id}" data-tab="${c.id}">${c.label}${on ? ' <span class="dot" aria-label="on"></span>' : ''}</button>`; }).join('');
+}
+function renderBody() {
+  const c = CATS.find((x) => x.id === state.tab); const b = $('body');
+  if (c.id === 'looks') {
+    b.innerHTML = `<div class="looks">${LeducTryOn.LOOKS.map((l) => `<button class="look" data-look="${l.key}" aria-pressed="${state.look === l.key}"><b>${l.name}</b><small>${l.description}</small></button>`).join('')}</div>
+      <label class="slider">Strength <input type="range" id="lk" min="50" max="130" value="${Math.round(state.lookStrength * 100)}"><span>${Math.round(state.lookStrength * 100)}%</span></label>`;
+    return;
+  }
+  const cur = state.spec[c.id];
+  let h = `<div class="swatches"><button class="sw none" data-hex="" aria-pressed="${!cur}"><i></i>None</button>${c.shades.map(([n, hex]) => `<button class="sw" data-hex="${hex}" aria-pressed="${!!cur && cur.color === hex}" title="${n} ${hex}"><i style="background:${hex}"></i>${n}</button>`).join('')}</div>`;
+  if (c.finishes) h += `<div class="chips" aria-label="Finish">${c.finishes.map((f) => `<button class="chip" data-finish="${f}" aria-pressed="${((cur && cur.finish) || c.finishes[0]) === f}">${f === 'sheershine' ? 'sheer shine' : f}</button>`).join('')}</div>`;
+  if (c.coverages) h += `<div class="chips" aria-label="Coverage">${c.coverages.map((f) => `<button class="chip" data-cov="${f}" aria-pressed="${((cur && cur.coverage) || 'medium') === f}">${f}</button>`).join('')}</div>`;
+  if (c.wing) h += `<div class="chips"><button class="chip" data-wing="1" aria-pressed="${!!(cur && cur.wing)}">Winged</button></div>`;
+  const op = Math.round(((cur && cur.opacity) ?? 1) * 100);
+  h += `<label class="slider">Intensity <input type="range" id="op" min="20" max="150" value="${op}" ${cur ? '' : 'disabled'}><span>${op}%</span></label>`;
+  b.innerHTML = h;
+}
+
+$('tabs').addEventListener('click', (e) => { const t = e.target.closest('[data-tab]'); if (!t) return; state.tab = t.dataset.tab; renderTabs(); renderBody(); });
+$('body').addEventListener('click', (e) => {
+  const c = CATS.find((x) => x.id === state.tab);
+  const look = e.target.closest('[data-look]');
+  if (look) { state.look = state.look === look.dataset.look ? null : look.dataset.look; renderBody(); push(); return; }
+  const sw = e.target.closest('[data-hex]');
+  if (sw) {
+    const hex = sw.dataset.hex; const prev = state.spec[c.id];
+    if (!hex) delete state.spec[c.id];
+    else state.spec[c.id] = { ...(prev || {}), color: hex, ...(c.finishes && !(prev && prev.finish) ? { finish: c.finishes[0] } : {}) };
+    if (c.id !== 'hair') state.look = null; // single products replace a preset look
+    renderBody(); push(); return;
+  }
+  const cur = state.spec[c.id]; if (!cur) return;
+  const fin = e.target.closest('[data-finish]'); if (fin) { cur.finish = fin.dataset.finish; renderBody(); push(); return; }
+  const cov = e.target.closest('[data-cov]'); if (cov) { cur.coverage = cov.dataset.cov; renderBody(); push(); return; }
+  const wing = e.target.closest('[data-wing]'); if (wing) { cur.wing = !cur.wing; renderBody(); push(); }
+});
+let tmr = 0;
+$('body').addEventListener('input', (e) => {
+  if (e.target.id === 'op') { const c = state.spec[state.tab]; if (c) c.opacity = e.target.value / 100; }
+  if (e.target.id === 'lk') state.lookStrength = e.target.value / 100;
+  e.target.nextElementSibling.textContent = e.target.value + '%';
+  clearTimeout(tmr); tmr = setTimeout(push, tryon && tryon.mode === 'photo' ? 180 : 0);
+});
+$('clear').onclick = () => { state.spec = {}; state.look = null; renderBody(); push(); };
+$('cam').onclick = $('cam2').onclick = startCamera;
+$('file').onchange = (e) => { usePhoto(e.target.files[0]); e.target.value = ''; };
+$('cmp').onclick = async () => { state.compare = !state.compare; $('cmp').setAttribute('aria-pressed', state.compare); $('cmp').textContent = state.compare ? 'Hide compare' : 'Compare'; if (tryon) await tryon.compare(state.compare ? 0.5 : null); };
+$('stage').addEventListener('pointermove', (e) => { if (!state.compare || !tryon || !(e.buttons || e.pointerType === 'touch')) return; const r = $('stage').getBoundingClientRect(); tryon.compare((e.clientX - r.left) / r.width); });
+$('snap').onclick = async () => { if (!tryon) return; const blob = await tryon.snapshot(); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'leduc-tryon.jpg'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); };
+
+renderTabs(); renderBody();
+window.__demo = { state, get tryon() { return tryon; }, usePhoto, push };
+</script>
+</body>
+</html>
