@@ -126,7 +126,7 @@ const state = { tab: 'looks', spec: {}, look: null, lookStrength: 1, compare: fa
 let tryon = null, busy = false;
 
 const setStatus = (t, err) => { const s = $('status'); s.textContent = t; s.classList.toggle('err', !!err); };
-const onStatus = (s) => { if (!tryon) return; if (tryon.mode === 'live') setStatus(!s.face ? 'Looking for your face…' : s.tooDark ? 'Too dark: face a light' : 'Live'); else if (tryon.mode === 'photo') setStatus(s.face ? 'Photo' : 'No face found in this photo', !s.face); };
+const onStatus = (s) => { if (!tryon) return; if (tryon.mode === 'live') setStatus(!s.face ? 'Looking for your face…' : s.tooDark ? 'Live · more light will look better' : 'Live'); else if (tryon.mode === 'photo') setStatus(s.face ? 'Photo' : 'No face found in this photo', !s.face); };
 
 // Signed for tyler-leduc.github.io and leducsystems.com only; localhost needs no key.
 const LICENSE_KEY = 'eyJ2IjoxLCJpZCI6IkxFRFVDU1lTVEVNUy1tdmlubmc4eCIsImN1c3RvbWVyIjoiTGVkdWMgU3lzdGVtcyBkZW1vIiwidGllciI6ImRlbW8iLCJkb21haW5zIjpbInR5bGVyLWxlZHVjLmdpdGh1Yi5pbyIsImxlZHVjc3lzdGVtcy5jb20iLCJ3d3cubGVkdWNzeXN0ZW1zLmNvbSJdLCJleHAiOiIyMDI4LTEwLTIwIiwiaWF0IjoiMjAyNi0xMC0yMSJ9.9jyb8EctuZLbu3X9zfQTrWJz9K8X9EjNLj88JIBi-GuBgv3MQGI-lvgmxC9n2YI5fuKHbScFGCq5m9yUL2MphQ';
