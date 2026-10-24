@@ -128,9 +128,16 @@ let tryon = null, busy = false;
 const setStatus = (t, err) => { const s = $('status'); s.textContent = t; s.classList.toggle('err', !!err); };
 window.__errs = []; const logErr = (m) => { window.__errs.push(String(m).slice(0, 300)); if (window.__errs.length > 20) window.__errs.shift(); };
 window.addEventListener('error', (e) => logErr('error: ' + (e.message || e))); window.addEventListener('unhandledrejection', (e) => logErr('rejection: ' + (e.reason && (e.reason.message || e.reason))));
-const onStatus = (s) => { if (!tryon) return; if (s.contextLost || s.glError || s.error) { logErr(s.contextLost ? 'webgl context lost' : s.glError ? 'gl error ' + s.glError : s.error); setStatus(s.contextLost ? 'Graphics context lost · reload the page' : s.glError ? 'Graphics error ' + s.glError + ' · try ?safe=1' : 'Render error · try ?safe=1', true); return; } if (tryon.mode === 'live') setStatus(!s.face ? 'Looking for your face…' : s.tooDark ? 'Live · more light will look better' : 'Live'); else if (tryon.mode === 'photo') setStatus(s.face ? 'Photo' : 'No face found in this photo', !s.face); };
-// ?safe=1: the newest render paths off (facial-hair test, per-side cast, eye-white lift, lash halo, extra lip feather), to tell a device problem from a feature problem.
-if (/[?&]safe\b/.test(location.search) && LeducTryOn.tune) Object.assign(LeducTryOn.tune, { lipHairK: 0, sideK: 0, whiteK: 0, lashHalo: 0, lipFeather: 0, liveOcc: 0 }); /* v3.16: + the live occluder worker */
+// v3.32: a camera start is "unconfirmed" (sessionStorage) until the live view has run 6 s without a graphics error. A page that
+// froze or lost its context comes back in safe mode by itself; ?full=1 clears the flag, ?safe=1 forces safe mode.
+const CAMKEY = 'leduc-tryon-cam-failed'; const store = { get: () => { try { return sessionStorage.getItem(CAMKEY) === '1'; } catch (e) { return false; } }, set: (on) => { try { if (on) sessionStorage.setItem(CAMKEY, '1'); else sessionStorage.removeItem(CAMKEY); } catch (e) { /* private mode */ } } };
+if (/[?&]full\b/.test(location.search)) store.set(false);
+const SAFE = /[?&]safe\b/.test(location.search) || store.get(); const AUTO_SAFE = SAFE && !/[?&]safe\b/.test(location.search);
+const gpuNote = () => (tryon && tryon.gpu ? ' · ' + String(tryon.gpu).slice(0, 60) : '');
+let camOK = 0;
+const onStatus = (s) => { if (!tryon) return; if (s.contextLost || s.glError || s.error) { logErr(s.contextLost ? 'webgl context lost' : s.glError ? 'gl error ' + s.glError : s.error); clearTimeout(camOK); const what = s.contextLost ? 'Graphics context lost' : s.glError ? 'Graphics error ' + s.glError : 'Render error'; if (tryon.mode === 'live' && !SAFE) { store.set(true); setStatus(what + ' · restarting in safe mode…', true); setTimeout(() => location.reload(), 1500); } else setStatus(what + (SAFE ? ' in safe mode too' : '') + gpuNote() + ' · reload the page', true); return; } if (tryon.mode === 'live') setStatus((!s.face ? 'Looking for your face…' : s.tooDark ? 'Live · more light will look better' : 'Live') + (SAFE ? ' · safe mode' : '')); else if (tryon.mode === 'photo') setStatus(s.face ? 'Photo' : 'No face found in this photo', !s.face); };
+// Safe mode: the newest render paths off (facial-hair test, per-side cast, eye-white lift, lash halo, extra lip feather, live occluder worker), the skin retouch off and a 1280x960 camera, to tell a device problem from a feature problem.
+if (SAFE && LeducTryOn.tune) Object.assign(LeducTryOn.tune, { lipHairK: 0, sideK: 0, whiteK: 0, lashHalo: 0, lipFeather: 0, liveOcc: 0, rtK: 0, rtLip: 0, camMax: 1280 }); /* v3.16: + the live occluder worker; v3.32: + retouch off, smaller camera frame */
 try { const tq = /[?&]tune=([^&]+)/.exec(location.search); if (tq && LeducTryOn.tune) Object.assign(LeducTryOn.tune, JSON.parse(decodeURIComponent(tq[1]))); } catch (e) { console.warn('tune', e && e.message); } /* ?tune={"k":v}: engine knob overrides for A/B tests */
 
 // Signed for tyler-leduc.github.io and leducsystems.com only; localhost needs no key.
@@ -140,8 +147,8 @@ async function ensure() { if (!tryon) tryon = await LeducTryOn.create({ containe
 const ready = () => { $('empty').hidden = true; $('toolbar').hidden = false; };
 
 async function startCamera() {
-  try { setStatus('Starting camera…'); const t = await ensure(); await t.startCamera(); ready(); push(); track('tryon_camera_start'); }
-  catch (e) { setStatus(/denied|NotAllowed/i.test(String(e && (e.name || e.message))) ? 'Allow camera access to try makeup live' : 'Camera unavailable here; try a photo', true); }
+  try { setStatus(AUTO_SAFE ? 'Last camera start failed · starting in safe mode…' : 'Starting camera…'); const t = await ensure(); store.set(true); /* unconfirmed until it has run 6 s */ await t.startCamera(); ready(); push(); track('tryon_camera_start', { safe_mode: SAFE }); clearTimeout(camOK); camOK = setTimeout(() => store.set(false), 6000); }
+  catch (e) { logErr('camera: ' + (e && (e.message || e.name))); if (/denied|NotAllowed/i.test(String(e && (e.name || e.message)))) { store.set(false); setStatus('Allow camera access to try makeup live', true); } else if (!SAFE) { setStatus('Camera failed · restarting in safe mode…', true); setTimeout(() => location.reload(), 1500); } else setStatus('Camera unavailable here' + gpuNote() + '; try a photo', true); }
 }
 async function usePhoto(file) {
   if (!file) return;
