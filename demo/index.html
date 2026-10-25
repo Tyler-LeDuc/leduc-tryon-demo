@@ -144,14 +144,15 @@ if (LeducTryOn.tune && window.matchMedia && matchMedia('(pointer: coarse)').matc
 if (SAFE && LeducTryOn.tune) Object.assign(LeducTryOn.tune, STAGES[stage][1]);
 const gpuNote = () => (tryon && tryon.gpu ? ' · ' + String(tryon.gpu).slice(0, 60) : '');
 let camOK = 0;
-const stepDown = (what) => { if (stage < STAGES.length - 1) { ss.set(SK, stage + 1); ss.set(PK, null); setStatus(what + ' · restarting with ' + STAGES[stage + 1][0] + '…', true); setTimeout(() => location.reload(), 1500); return true; } return false; };
+const AUTOREC = location.search.indexOf('autorecover') >= 0; /* v3.38: let the engine's own one-shot recovery handle a lost context (harness check) */
+const stepDown = (what) => { if (AUTOREC) return false; if (stage < STAGES.length - 1) { ss.set(SK, stage + 1); ss.set(PK, null); setStatus(what + ' · restarting with ' + STAGES[stage + 1][0] + '…', true); setTimeout(() => location.reload(), 1500); return true; } return false; };
 const onStatus = (s) => { if (!tryon) return; if (s.contextLost || s.glError || s.error) { logErr(s.contextLost ? 'webgl context lost' : s.glError ? 'gl error ' + s.glError : s.error); clearTimeout(camOK); const what = s.contextLost ? 'Graphics context lost' : s.glError ? 'Graphics error ' + s.glError : 'Render error'; if (!(tryon.mode === 'live' && stepDown(what))) setStatus(what + (SAFE ? ' in ' + stageName() + ' too' : '') + gpuNote() + ' · reload the page', true); return; } if (tryon.mode === 'live') setStatus((!s.face ? 'Looking for your face…' : s.tooDark ? 'Live · more light will look better' : 'Live') + (SAFE ? ' · ' + stageName() : '')); else if (tryon.mode === 'photo') setStatus(s.face ? 'Photo' : 'No face found in this photo', !s.face); };
 try { const tq = /[?&]tune=([^&]+)/.exec(location.search); if (tq && LeducTryOn.tune) Object.assign(LeducTryOn.tune, JSON.parse(decodeURIComponent(tq[1]))); } catch (e) { console.warn('tune', e && e.message); } /* ?tune={"k":v}: engine knob overrides for A/B tests */
 
 // Signed for tyler-leduc.github.io and leducsystems.com only; localhost needs no key.
 const LICENSE_KEY = 'eyJ2IjoxLCJpZCI6IkxFRFVDU1lTVEVNUy1tdmlubmc4eCIsImN1c3RvbWVyIjoiTGVkdWMgU3lzdGVtcyBkZW1vIiwidGllciI6ImRlbW8iLCJkb21haW5zIjpbInR5bGVyLWxlZHVjLmdpdGh1Yi5pbyIsImxlZHVjc3lzdGVtcy5jb20iLCJ3d3cubGVkdWNzeXN0ZW1zLmNvbSJdLCJleHAiOiIyMDI4LTEwLTIwIiwiaWF0IjoiMjAyNi0xMC0yMSJ9.9jyb8EctuZLbu3X9zfQTrWJz9K8X9EjNLj88JIBi-GuBgv3MQGI-lvgmxC9n2YI5fuKHbScFGCq5m9yUL2MphQ';
 const track = (name, params = {}) => { if (typeof gtag === 'function') gtag('event', name, { embedded: window.top !== window, ...params }); };
-async function ensure() { if (!tryon) tryon = await LeducTryOn.create({ container: $('stage'), onStatus, licenseKey: LICENSE_KEY }); return tryon; }
+async function ensure() { if (!tryon) tryon = await LeducTryOn.create({ container: $('stage'), onStatus, autoRecover: AUTOREC, licenseKey: LICENSE_KEY }); return tryon; }
 const ready = () => { $('empty').hidden = true; $('toolbar').hidden = false; };
 
 async function startCamera() {
