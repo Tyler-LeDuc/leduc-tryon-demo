@@ -150,7 +150,7 @@ const onStatus = (s) => { if (!tryon) return; if (s.contextLost || s.glError || 
 try { const tq = /[?&]tune=([^&]+)/.exec(location.search); if (tq && LeducTryOn.tune) Object.assign(LeducTryOn.tune, JSON.parse(decodeURIComponent(tq[1]))); } catch (e) { console.warn('tune', e && e.message); } /* ?tune={"k":v}: engine knob overrides for A/B tests */
 
 // Signed for tyler-leduc.github.io and leducsystems.com only; localhost needs no key.
-const LICENSE_KEY = 'eyJ2IjoxLCJpZCI6IkxFRFVDU1lTVEVNUy1tdmlubmc4eCIsImN1c3RvbWVyIjoiTGVkdWMgU3lzdGVtcyBkZW1vIiwidGllciI6ImRlbW8iLCJkb21haW5zIjpbInR5bGVyLWxlZHVjLmdpdGh1Yi5pbyIsImxlZHVjc3lzdGVtcy5jb20iLCJ3d3cubGVkdWNzeXN0ZW1zLmNvbSJdLCJleHAiOiIyMDI4LTEwLTIwIiwiaWF0IjoiMjAyNi0xMC0yMSJ9.9jyb8EctuZLbu3X9zfQTrWJz9K8X9EjNLj88JIBi-GuBgv3MQGI-lvgmxC9n2YI5fuKHbScFGCq5m9yUL2MphQ';
+const LICENSE_KEY = 'eyJ2IjoxLCJpZCI6IkxFRFVDU1lTVEVNUy1kZW1vMiIsImN1c3RvbWVyIjoiTGVkdWMgU3lzdGVtcyBkZW1vIiwidGllciI6ImRlbW8iLCJkb21haW5zIjpbInR5bGVyLWxlZHVjLmdpdGh1Yi5pbyIsImxlZHVjc3lzdGVtcy5jb20iLCJ3d3cubGVkdWNzeXN0ZW1zLmNvbSJdLCJleHAiOiIyMDI4LTEwLTIwIiwiaWF0IjoiMjAyNi0xMC0zMCJ9.ktDpaEpSCw9G_6D8k6mykEDapSGfhhT4keDHDMX695A6OkZ0qzhWY3Xx-_KTYe84WEDt_ImO26RsqOb1_8Garg';
 const track = (name, params = {}) => { if (typeof gtag === 'function') gtag('event', name, { embedded: window.top !== window, ...params }); };
 async function ensure() { if (!tryon) tryon = await LeducTryOn.create({ container: $('stage'), onStatus, autoRecover: AUTOREC, licenseKey: LICENSE_KEY }); return tryon; }
 const ready = () => { $('empty').hidden = true; $('toolbar').hidden = false; };
